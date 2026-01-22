@@ -1,6 +1,7 @@
-# Dev environment
-pip
-autopep8
-
-# App
-flask
+Flask
+osmnx
+folium
+networkx
+scikit-learn
+requests
+geopandas
