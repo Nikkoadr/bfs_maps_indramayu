@@ -5,7 +5,9 @@ import osmnx as ox
 import networkx as nx
 from shapely.geometry import Point, Polygon
 
-app = Flask(__name__)
+# The static_folder argument tells Flask where to look for static files.
+# We set it to 'src' so it can find index.html there.
+app = Flask(__name__, static_folder='src')
 GRAPH_FILE = "indramayu_graph.pkl"
 G_base = None
 
@@ -22,7 +24,8 @@ def load_or_create_graph():
 
 @app.route('/')
 def index():
-    return send_from_directory(os.path.dirname(os.path.abspath(__file__)), 'index.html')
+    # Serves index.html from the 'src' directory.
+    return send_from_directory('src', 'index.html')
 
 @app.route('/api/route', methods=['POST'])
 def get_route():
@@ -59,24 +62,17 @@ def get_route():
         
         explored_nodes_for_vis = [node for node, dist in distances.items() if dist <= total_distance]
 
-        # --- LOGIKA BARU: Membuat & MENGURUTKAN segmen untuk animasi --- #
         temp_segments_with_dist = []
         for node in explored_nodes_for_vis:
             path_to_node = paths.get(node)
             if path_to_node and len(path_to_node) > 1:
                 p1_node, p2_node = path_to_node[-2], path_to_node[-1]
-                # Dapatkan jarak ke titik akhir segmen untuk pengurutan
                 dist_to_segment_end = distances.get(p2_node, float('inf'))
-                
                 p1_coord = (G_modified.nodes[p1_node]['y'], G_modified.nodes[p1_node]['x'])
                 p2_coord = (G_modified.nodes[p2_node]['y'], G_modified.nodes[p2_node]['x'])
-                
                 temp_segments_with_dist.append((dist_to_segment_end, [p1_coord, p2_coord]))
 
-        # Urutkan berdasarkan jarak (elemen pertama dari tuple)
         temp_segments_with_dist.sort(key=lambda x: x[0])
-        
-        # Ekstrak hanya data segmen setelah diurutkan
         sorted_segments = [segment for dist, segment in temp_segments_with_dist]
 
         return jsonify({

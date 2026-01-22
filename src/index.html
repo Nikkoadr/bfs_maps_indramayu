@@ -116,7 +116,7 @@
                 // TAHAP 1: Animasi "Ledakan" Garis Merah
                 explosionLayer = L.layerGroup().addTo(map);
                 let i = 0;
-                const batchSize = Math.ceil(segments.length / 500); // 150-step animation
+                const batchSize = Math.ceil(segments.length / 150); // 150-step animation
 
                 function drawExplosionBatch() {
                     if (i >= segments.length) {
