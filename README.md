@@ -34,7 +34,7 @@ Pastikan Anda memiliki Python 3 terinstal di sistem Anda.
 
     ```bash
     # Buat virtual environment
-    python3 -m venv .venv
+    python -m venv .venv
 
     # Aktifkan di macOS/Linux
     source .venv/bin/activate

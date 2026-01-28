@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sistem Pencarian Rute Terpendek</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet-draw/dist/leaflet.draw.css"
+    />
+    <style>
+      body,
+      html {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        font-family: sans-serif;
+      }
+      #map {
+        height: 100vh;
+        width: 100%;
+        cursor: default;
+      }
+      #controls {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        z-index: 1000;
+        background: white;
+        padding: 10px;
+        border-radius: 5px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+        max-width: 250px;
+      }
+      #controls button,
+      select {
+        width: 100%;
+        padding: 8px;
+        margin-bottom: 5px;
+        cursor: pointer;
+      }
+      .loader {
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid #3498db;
+        border-radius: 50%;
+        width: 20px;
+        height: 20px;
+        animation: spin 2s linear infinite;
+        display: none;
+        margin-top: 10px;
+      }
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+      .active-button {
+        background-color: #add8e6 !important;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+    <div id="controls">
+      <h4>Kontrol</h4>
+      <button id="btnSetStart">1. Pilih Titik Awal</button>
+      <button id="btnSetEnd">2. Pilih Titik Akhir</button>
+      <button id="btnDrawObstacle">3. Gambar Rintangan</button>
+      <hr />
+      <label for="method">Metode Algoritma:</label>
+      <select id="method">
+        <option value="dijkstra">Dijkstra (Weighted)</option>
+        <option value="bfs">BFS Murni (Unweighted)</option>
+      </select>
+      <button id="btnFindRoute" style="background-color: #4caf50; color: white">
+        4. CARI RUTE
+      </button>
+      <button id="btnReset">Reset</button>
+      <div id="loader" class="loader"></div>
+      <div id="info"></div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-draw/dist/leaflet.draw.js"></script>
+
+    <script>
+      const map = L.map("map").setView([-6.34, 108.32], 13);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      }).addTo(map);
+
+      const startIcon = new L.Icon({
+        iconUrl:
+          "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png",
+        shadowUrl:
+          "https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png",
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+      });
+      const endIcon = new L.Icon({
+        iconUrl:
+          "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png",
+        shadowUrl:
+          "https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png",
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+      });
+
+      let currentMode = null;
+      let startMarker = null,
+        endMarker = null;
+      let routeLayer = null,
+        explosionLayer = null,
+        finalRedPathLayer = null;
+      let drawnItems = new L.FeatureGroup().addTo(map);
+      const polygonDrawer = new L.Draw.Polygon(map);
+
+      document.getElementById("btnSetStart").onclick = () =>
+        setMode("setStart");
+      document.getElementById("btnSetEnd").onclick = () => setMode("setEnd");
+      document.getElementById("btnDrawObstacle").onclick = () =>
+        setMode("drawObstacle");
+      document.getElementById("btnFindRoute").onclick = findRoute;
+      document.getElementById("btnReset").onclick = resetMap;
+
+      function setMode(mode) {
+        currentMode =
+          currentMode === mode && mode !== "drawObstacle" ? null : mode;
+        updateButtonStyles();
+        polygonDrawer.disable();
+        if (currentMode === "drawObstacle") polygonDrawer.enable();
+      }
+
+      function updateButtonStyles() {
+        document
+          .querySelectorAll("#controls button")
+          .forEach((btn) => btn.classList.remove("active-button"));
+        const activeBtnId = currentMode
+          ? `btn${currentMode.charAt(0).toUpperCase() + currentMode.slice(1)}`
+          : null;
+        if (activeBtnId)
+          document.getElementById(activeBtnId).classList.add("active-button");
+        map.getContainer().style.cursor = currentMode ? "crosshair" : "default";
+      }
+
+      map.on("click", (e) => {
+        if (currentMode === "setStart") {
+          if (startMarker) map.removeLayer(startMarker);
+          startMarker = L.marker(e.latlng, { icon: startIcon }).addTo(map);
+          setMode(null);
+        } else if (currentMode === "setEnd") {
+          if (endMarker) map.removeLayer(endMarker);
+          endMarker = L.marker(e.latlng, { icon: endIcon }).addTo(map);
+          setMode(null);
+        }
+      });
+
+      map.on(L.Draw.Event.CREATED, (event) => {
+        drawnItems.addLayer(event.layer);
+        setMode(null);
+      });
+
+      async function findRoute() {
+        if (!startMarker || !endMarker) {
+          alert("Tentukan Titik Awal dan Akhir dulu!");
+          return;
+        }
+        document.getElementById("loader").style.display = "block";
+        resetVisualization();
+        const obstacles = drawnItems.getLayers().map((l) => l.toGeoJSON());
+        const method = document.getElementById("method").value;
+
+        try {
+          const response = await fetch("/api/route", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              start_lat: startMarker.getLatLng().lat,
+              start_lon: startMarker.getLatLng().lng,
+              end_lat: endMarker.getLatLng().lat,
+              end_lon: endMarker.getLatLng().lng,
+              obstacles: obstacles,
+              method: method,
+            }),
+          });
+          const data = await response.json();
+
+          if (data.status === "success") {
+            if (data.method.includes("BFS")) {
+              document.getElementById("info").innerHTML =
+                `Metode: ${data.method}<br>Langkah: ${data.distance_steps} simpul`;
+            } else {
+              const km = (data.distance_meters / 1000).toFixed(2);
+              document.getElementById("info").innerHTML =
+                `Metode: ${data.method}<br>Jarak: ${km} km`;
+            }
+
+            if (data.route_coordinates) {
+              routeLayer = L.polyline(data.route_coordinates, {
+                color: "blue",
+                weight: 4,
+              }).addTo(map);
+              map.fitBounds(routeLayer.getBounds());
+            }
+          } else {
+            document.getElementById("info").innerHTML =
+              `Gagal: ${data.message}`;
+          }
+        } catch (error) {
+          document.getElementById("info").innerHTML = `Terjadi error: ${error}`;
+        } finally {
+          document.getElementById("loader").style.display = "none";
+        }
+      }
+
+      function resetVisualization() {
+        if (routeLayer) map.removeLayer(routeLayer);
+        if (explosionLayer) map.removeLayer(explosionLayer);
+        if (finalRedPathLayer) map.removeLayer(finalRedPathLayer);
+        routeLayer = null;
+        explosionLayer = null;
+        finalRedPathLayer = null;
+      }
+
+      function resetMap() {
+        if (startMarker) map.removeLayer(startMarker);
+        if (endMarker) map.removeLayer(endMarker);
+        resetVisualization();
+        drawnItems.clearLayers();
+        startMarker = null;
+        endMarker = null;
+        setMode(null);
+        document.getElementById("info").innerHTML = "";
+        document.getElementById("loader").style.display = "none";
+      }
+    </script>
+  </body>
+</html>
