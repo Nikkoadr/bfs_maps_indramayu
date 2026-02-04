@@ -62,5 +62,3 @@ Pastikan Anda memiliki Python 3 terinstal di sistem Anda.
 5.  **Buka di Browser**
 
     Buka browser web Anda dan kunjungi `http://127.0.0.1:8080` atau `http://localhost:8080`.
-
-    **Catatan Penting:** Saat Anda pertama kali menjalankan pencarian rute, aplikasi akan mengunduh data peta untuk wilayah Indramayu dan menyimpannya dalam file `indramayu_graph.pkl`. Proses ini mungkin **memakan waktu beberapa menit** dan membutuhkan koneksi internet. Harap bersabar. Pencarian rute selanjutnya akan berjalan jauh lebih cepat karena menggunakan data yang sudah di-cache.
