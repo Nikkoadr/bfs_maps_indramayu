@@ -44,7 +44,7 @@ def index():
     return send_from_directory('src', 'index.html')
 
 
-# API AMBIL SEMUA NODE (Fitur Baru)
+# API AMBIL SEMUA NODE
 @app.route('/api/nodes', methods=['GET'])
 def get_all_nodes():
     try:
@@ -62,7 +62,7 @@ def get_all_nodes():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
-# API HITUNG RUTE (BFS MURNI)
+# API HITUNG RUTE
 @app.route('/api/route', methods=['POST'])
 def get_route():
     data = request.get_json()
